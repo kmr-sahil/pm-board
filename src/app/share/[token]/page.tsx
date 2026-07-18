@@ -36,7 +36,8 @@ export default async function SharePage({
         projectId={shared.project.id}
         initialStages={shared.stages}
         initialTasks={shared.tasks}
-        readOnly
+        // Anonymous link: view only, and never expose internal assignments.
+        perms={{ canEdit: false, canAddTasks: false, canSeeAssignees: false }}
       />
     </div>
   );

@@ -1,26 +1,14 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { KanbanSquare } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-
-const ROLES = ["admin", "employee", "client"];
 
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
-  const search = useSearchParams();
-  const roleParam = search.get("role");
-  const role = roleParam && ROLES.includes(roleParam) ? roleParam : null;
 
-  // /login?role=admin|employee|client assigns that role after sign-in
-  // (dev convenience backed by the set_login_role RPC — see README).
-  const callbackUrl = () => {
-    const url = new URL("/auth/callback", window.location.origin);
-    if (role) url.searchParams.set("role", role);
-    return url.toString();
-  };
+  const callbackUrl = () => new URL("/auth/callback", window.location.origin).toString();
 
   async function signInWithGoogle() {
     const supabase = createClient();
@@ -48,12 +36,6 @@ function LoginForm() {
           <KanbanSquare className="size-6 text-indigo-500" />
           <h1 className="text-lg font-semibold">PM Board</h1>
         </div>
-
-        {role && (
-          <p className="mb-4 rounded-lg bg-indigo-50 px-3 py-2 text-center text-xs text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
-            Signing in as <span className="font-semibold capitalize">{role}</span>
-          </p>
-        )}
 
         <button onClick={signInWithGoogle} className="btn w-full justify-center py-2">
           Continue with Google

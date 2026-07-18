@@ -4,21 +4,28 @@ Minimal Trello-style project management for a small agency: staff manage project
 
 **Stack:** Next.js (App Router) · Tailwind CSS v4 · Supabase (Postgres + Auth + RLS)
 
-## Roles
+## Access model
 
-| | admin | employee | client |
-|---|---|---|---|
-| Projects / stages / tasks | full | full | read-only, own projects |
-| Subtasks | full | full | hidden |
-| Notes (credentials, secrets) | full | full | hidden |
-| Manage user roles | Supabase table editor | — | — |
+**You only see a project if you created it, or someone added you to it** via the Team button. There is no "staff sees everything" rule — admin and employee have identical rights.
 
-All role rules are enforced server-side with Postgres Row Level Security — hiding things in the UI is cosmetic on top of that.
+| | admin / employee | client |
+|---|---|---|
+| See a project | if creator or invited | if creator or invited |
+| Stages | full | read-only |
+| Tasks | full | read + **add**, no edit/delete |
+| Task assignees | full | hidden |
+| Subtasks | full | hidden |
+| Notes (credentials, secrets) | full | hidden |
+
+All of this is enforced server-side with Postgres Row Level Security — hiding things in the UI is cosmetic on top of that.
 
 ## Setup
 
 1. **Create a Supabase project** at [database.new](https://database.new).
-2. **Run the schema:** open Dashboard → SQL Editor, paste the contents of `supabase/schema.sql`, run it.
+2. **Run the schema:** open Dashboard → SQL Editor and run, **in order**:
+   `supabase/schema.sql` → `migration-2.sql` → `migration-3.sql` → `migration-4.sql`.
+   Migration 4 is the access-control fix and is required — without it every signed-up
+   user can read every project.
 3. **Configure auth:**
    - Google SSO: Dashboard → Authentication → Providers → Google (add your OAuth client ID/secret).
    - Magic links work out of the box (email provider is on by default).
@@ -38,13 +45,24 @@ All role rules are enforced server-side with Postgres Row Level Security — hid
 
 - The **first user to ever sign up becomes admin** — sign up yourself first.
 - Anyone whose email matches a project's client email becomes a **client** and is auto-linked to their project(s), whether they sign up before or after the project is created.
-- Everyone else becomes an **employee**. To change someone's role, edit the `profiles` table in the Supabase dashboard.
+- Everyone else becomes an **employee**. A brand-new employee sees *no* projects until someone invites them.
+
+To change a role, edit the `profiles` table in the Supabase dashboard:
+
+```sql
+update profiles set role = 'client' where email = 'someone@example.com';
+```
+
+> The old `/login?role=admin` shortcut has been removed — it let anyone grant
+> themselves admin.
 
 ## Flow
 
-1. Staff clicks **+** next to Projects → fills the minimal onboarding form (project name, description, client name + email).
-2. The project is created with default stages (Backlog / In Progress / Review / Done) — rename by deleting/adding, drag tasks between stages.
-3. Client requests come in → staff create tasks, break them into subtasks, and work through them.
-4. Credentials and secrets live in the project's **Notes** tab — visible to admins and employees only.
-5. The client signs in with the onboarded email and sees just their board: stages, tasks, and a progress bar (tasks in the last stage / total). No subtasks, no notes, no editing.
-# pm-board
+1. Staff clicks **+** next to Projects (or the button on the home screen) → onboarding modal: project name, description, client name + email.
+2. The project is created with default stages (Backlog / In Progress / Review / Done); drag tasks between stages.
+3. **Team** button → add or remove people. Only people on the team can open the project or be assigned work.
+4. Staff create tasks, break them into subtasks, and assign both to specific teammates.
+5. Credentials and secrets live in the project's **Notes** modal — staff only.
+6. A client signs in and sees their board: progress, stages, tasks, and each task's created date and author. They can **add** a task but not edit or delete one, and they never see who a task is assigned to.
+
+Clients without a project yet get a **Request a project** modal — the same form, filed under their own email.

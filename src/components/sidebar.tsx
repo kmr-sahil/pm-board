@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, KanbanSquare, LogOut, Plus, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, KanbanSquare, LogOut, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { initials } from "@/lib/utils";
 import type { Profile, Project } from "@/lib/types";
 import { ConfirmDialog } from "./confirm-dialog";
+import { ProjectFormModal } from "./project-form-modal";
 import { ThemeToggle } from "./theme-toggle";
 
 const iconBtn =
@@ -23,7 +24,6 @@ export function Sidebar({
   const router = useRouter();
   const params = useParams<{ id?: string }>();
   const [showForm, setShowForm] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const isStaff = profile.role !== "client";
@@ -45,29 +45,6 @@ export function Sidebar({
     router.refresh();
   }
 
-  async function createProject(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setSaving(true);
-    const form = new FormData(e.currentTarget);
-    const { data, error } = await createClient()
-      .from("projects")
-      .insert({
-        name: form.get("name") as string,
-        description: (form.get("description") as string) || null,
-        client_name: (form.get("client_name") as string) || null,
-        client_email: (form.get("client_email") as string) || null,
-        created_by: profile.id,
-      })
-      .select("id")
-      .single();
-    setSaving(false);
-    if (!error && data) {
-      setShowForm(false);
-      router.push(`/projects/${data.id}`);
-      router.refresh();
-    }
-  }
-
   return (
     <aside
       className={`flex shrink-0 flex-col border-r border-zinc-200 bg-white transition-all dark:border-zinc-800 dark:bg-zinc-900 ${
@@ -81,15 +58,13 @@ export function Sidebar({
             <button onClick={toggleCollapsed} className={iconBtn} title="Expand sidebar">
               <ChevronRight className="size-4" />
             </button>
-            {isStaff ? (
-              <button onClick={() => setShowForm(true)} className={iconBtn} title="New project">
-                <Plus className="size-4" />
-              </button>
-            ) : (
-              <Link href="/request" className={iconBtn} title="Request a project">
-                <Plus className="size-4" />
-              </Link>
-            )}
+            <button
+              onClick={() => setShowForm(true)}
+              className={iconBtn}
+              title={isStaff ? "New project" : "Request a project"}
+            >
+              <Plus className="size-4" />
+            </button>
           </div>
           <div className="flex flex-1 flex-col items-center gap-1 overflow-y-auto px-2">
             {projects.map((p) => (
@@ -129,27 +104,21 @@ export function Sidebar({
               <span className="text-xs font-medium uppercase tracking-wide text-zinc-400">
                 Projects
               </span>
-              {isStaff ? (
-                <button
-                  onClick={() => setShowForm(true)}
-                  className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-                  title="New project / onboard client"
-                >
-                  <Plus className="size-4" />
-                </button>
-              ) : (
-                <Link
-                  href="/request"
-                  className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-                  title="Request a project"
-                >
-                  <Plus className="size-4" />
-                </Link>
-              )}
+              <button
+                onClick={() => setShowForm(true)}
+                className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                title={isStaff ? "New project / onboard client" : "Request a project"}
+              >
+                <Plus className="size-4" />
+              </button>
             </div>
 
             {projects.length === 0 && (
-              <p className="px-2 py-4 text-sm text-zinc-400">No projects yet.</p>
+              <p className="px-2 py-4 text-sm text-zinc-400">
+                {isStaff
+                  ? "No projects yet. Create one to get started."
+                  : "No projects yet. Request one to get started."}
+              </p>
             )}
             {projects.map((p) => (
               <Link
@@ -192,42 +161,7 @@ export function Sidebar({
       )}
 
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <form onSubmit={createProject} className="card w-full max-w-md p-6">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="font-semibold">New project</h2>
-              <button
-                type="button"
-                onClick={() => setShowForm(false)}
-                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
-            <div className="space-y-3">
-              <input name="name" required placeholder="Project name" className="input" />
-              <textarea
-                name="description"
-                placeholder="Short description (optional)"
-                rows={2}
-                className="input resize-none"
-              />
-              <p className="pt-1 text-xs font-medium uppercase tracking-wide text-zinc-400">
-                Client (optional)
-              </p>
-              <input name="client_name" placeholder="Client name" className="input" />
-              <input
-                name="client_email"
-                type="email"
-                placeholder="Client email — they see the board read-only"
-                className="input"
-              />
-            </div>
-            <button type="submit" disabled={saving} className="btn mt-5 w-full justify-center py-2">
-              {saving ? "Creating…" : "Create project"}
-            </button>
-          </form>
-        </div>
+        <ProjectFormModal profile={profile} onClose={() => setShowForm(false)} />
       )}
     </aside>
   );

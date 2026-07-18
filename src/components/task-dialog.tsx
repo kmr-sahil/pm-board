@@ -1,17 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Trash2, X } from "lucide-react";
+import { CalendarDays, Plus, Trash2, UserRound, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatDateTime } from "@/lib/utils";
-import type { Member, Stage, Subtask, Task } from "@/lib/types";
+import type { Member, Perms, Stage, Subtask, Task } from "@/lib/types";
 import { ConfirmDialog } from "./confirm-dialog";
 
 export function TaskDialog({
   task,
   stages,
   members,
-  readOnly,
+  perms,
   onClose,
   onMoveStage,
   onUpdated,
@@ -20,7 +20,7 @@ export function TaskDialog({
   task: Task;
   stages: Stage[];
   members: Member[];
-  readOnly: boolean;
+  perms: Perms;
   onClose: () => void;
   onMoveStage: (stageId: string) => void;
   onUpdated: (patch: Partial<Task>) => void;
@@ -33,8 +33,12 @@ export function TaskDialog({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const supabase = createClient();
 
+  const readOnly = !perms.canEdit;
   // Only project team members (excluding the client) can be assigned.
   const assignable = members.filter((m) => m.role !== "client");
+  const stageName = stages.find((s) => s.id === task.stage_id)?.name;
+  const createdBy = task.creator?.full_name ?? task.creator?.email;
+  const assignedTo = task.assignee?.full_name ?? task.assignee?.email;
 
   // Clients can't read subtasks (RLS), so don't fetch.
   useEffect(() => {
@@ -122,9 +126,57 @@ export function TaskDialog({
         </div>
 
         {readOnly ? (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            {description || "No description."}
-          </p>
+          /* ---------- Client view: status + description, nothing editable ---------- */
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              {stageName && (
+                <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
+                  {stageName}
+                </span>
+              )}
+            </div>
+
+            <div>
+              <p className="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-400">
+                Description
+              </p>
+              <p className="whitespace-pre-wrap text-sm text-zinc-600 dark:text-zinc-300">
+                {description || "No description yet."}
+              </p>
+            </div>
+
+            {/* Assignment is deliberately omitted — clients don't see who is on it. */}
+            <dl className="grid grid-cols-1 gap-3 border-t border-zinc-100 pt-4 text-sm dark:border-zinc-800 sm:grid-cols-2">
+              {task.created_at && (
+                <div>
+                  <dt className="mb-0.5 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-zinc-400">
+                    <CalendarDays className="size-3.5" /> Created
+                  </dt>
+                  <dd className="text-zinc-600 dark:text-zinc-300">
+                    {formatDateTime(task.created_at)}
+                  </dd>
+                </div>
+              )}
+              {createdBy && (
+                <div>
+                  <dt className="mb-0.5 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-zinc-400">
+                    <UserRound className="size-3.5" /> Created by
+                  </dt>
+                  <dd className="text-zinc-600 dark:text-zinc-300">{createdBy}</dd>
+                </div>
+              )}
+              {task.updated_at && (
+                <div>
+                  <dt className="mb-0.5 text-xs font-medium uppercase tracking-wide text-zinc-400">
+                    Last updated
+                  </dt>
+                  <dd className="text-zinc-600 dark:text-zinc-300">
+                    {formatDateTime(task.updated_at)}
+                  </dd>
+                </div>
+              )}
+            </dl>
+          </div>
         ) : (
           <>
             <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -232,10 +284,21 @@ export function TaskDialog({
               </form>
             </div>
 
-            <div className="mt-6 flex items-center justify-between border-t border-zinc-100 pt-4 dark:border-zinc-800">
-              <div className="text-xs text-zinc-400">
-                {task.created_at && <p>Created {formatDateTime(task.created_at)}</p>}
+            <div className="mt-6 flex flex-wrap items-end justify-between gap-3 border-t border-zinc-100 pt-4 dark:border-zinc-800">
+              <div className="space-y-0.5 text-xs text-zinc-400">
+                {task.created_at && (
+                  <p>
+                    Created {formatDateTime(task.created_at)}
+                    {createdBy && <> by <span className="text-zinc-500 dark:text-zinc-300">{createdBy}</span></>}
+                  </p>
+                )}
                 {task.updated_at && <p>Updated {formatDateTime(task.updated_at)}</p>}
+                <p>
+                  Assigned to{" "}
+                  <span className="text-zinc-500 dark:text-zinc-300">
+                    {assignedTo ?? "nobody yet"}
+                  </span>
+                </p>
               </div>
               <button
                 onClick={() => setConfirmDelete(true)}

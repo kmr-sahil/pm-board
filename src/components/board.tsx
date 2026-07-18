@@ -5,25 +5,27 @@ import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-p
 import { CheckSquare, Plus, Trash2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { initials } from "@/lib/utils";
-import type { Member, Stage, Task } from "@/lib/types";
+import type { Member, Perms, Stage, Task } from "@/lib/types";
 import { ConfirmDialog } from "./confirm-dialog";
 import { TaskDialog } from "./task-dialog";
 
-export const TASK_SELECT = "*, subtasks(done), assignee:assigned_to(id, full_name, email)";
+export const TASK_SELECT =
+  "*, subtasks(done), assignee:assigned_to(id, full_name, email), creator:created_by(id, full_name, email)";
 
 export function Board({
   projectId,
   initialStages,
   initialTasks,
   members = [],
-  readOnly,
+  perms,
 }: {
   projectId: string;
   initialStages: Stage[];
   initialTasks: Task[];
   members?: Member[];
-  readOnly: boolean;
+  perms: Perms;
 }) {
+  const readOnly = !perms.canEdit;
   const [stages, setStages] = useState(initialStages);
   const [tasks, setTasks] = useState(initialTasks);
   const [openTask, setOpenTask] = useState<Task | null>(null);
@@ -138,7 +140,10 @@ export function Board({
                   {tasksIn(stage.id).map((task, index) => {
                     const subs = task.subtasks ?? [];
                     const doneCount = subs.filter((s) => s.done).length;
-                    const who = task.assignee?.full_name ?? task.assignee?.email;
+                    // Assignment is internal — never surface it to clients.
+                    const who = perms.canSeeAssignees
+                      ? task.assignee?.full_name ?? task.assignee?.email
+                      : undefined;
                     return (
                       <Draggable
                         key={task.id}
@@ -182,8 +187,13 @@ export function Board({
                     );
                   })}
                   {provided.placeholder}
-                  {!readOnly && (
-                    <AddInput placeholder="Add a task…" onAdd={(v) => addTask(stage.id, v)} />
+                  {/* Clients can raise work, but only into the first stage —
+                      dropping a request straight into "Done" makes no sense. */}
+                  {perms.canAddTasks && (perms.canEdit || stage.id === stages[0]?.id) && (
+                    <AddInput
+                      placeholder={perms.canEdit ? "Add a task…" : "Request something…"}
+                      onAdd={(v) => addTask(stage.id, v)}
+                    />
                   )}
                 </div>
               )}
@@ -214,7 +224,7 @@ export function Board({
           task={openTask}
           stages={stages}
           members={members}
-          readOnly={readOnly}
+          perms={perms}
           onClose={() => setOpenTask(null)}
           onMoveStage={(stageId) => moveToStage(openTask, stageId)}
           onUpdated={(patch) => {

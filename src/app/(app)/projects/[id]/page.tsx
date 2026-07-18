@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { Board } from "@/components/board";
 import { ProjectHeader } from "@/components/project-header";
 import { createClient } from "@/lib/supabase/server";
-import type { Member, Stage, Task } from "@/lib/types";
+import { permsFor, type Member, type Role, type Stage, type Task } from "@/lib/types";
 
 export default async function ProjectPage({
   params,
@@ -28,7 +28,9 @@ export default async function ProjectPage({
     supabase.from("stages").select("*").eq("project_id", id).order("position"),
     supabase
       .from("tasks")
-      .select("*, subtasks(done), assignee:assigned_to(id, full_name, email)")
+      .select(
+        "*, subtasks(done), assignee:assigned_to(id, full_name, email), creator:created_by(id, full_name, email)"
+      )
       .eq("project_id", id)
       .order("position"),
     supabase
@@ -37,8 +39,11 @@ export default async function ProjectPage({
       .eq("project_id", id),
   ]);
 
+  // RLS already hides projects the user has no access to, so a missing row here
+  // means "not yours" as much as "doesn't exist" — both are a 404.
   if (!project) notFound();
-  const isClient = profile?.role === "client";
+
+  const perms = permsFor((profile?.role ?? "client") as Role);
   const members = ((memberRows ?? []) as unknown as { user: Member | null }[])
     .map((r) => r.user)
     .filter((u): u is Member => u !== null);
@@ -50,7 +55,7 @@ export default async function ProjectPage({
         stages={(stages ?? []) as Stage[]}
         tasks={(tasks ?? []) as Task[]}
         members={members}
-        isClient={isClient}
+        perms={perms}
       />
       <Board
         key={id}
@@ -58,7 +63,7 @@ export default async function ProjectPage({
         initialStages={(stages ?? []) as Stage[]}
         initialTasks={(tasks ?? []) as Task[]}
         members={members}
-        readOnly={isClient}
+        perms={perms}
       />
     </div>
   );

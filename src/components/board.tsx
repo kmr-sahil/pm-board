@@ -5,7 +5,7 @@ import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-p
 import { CheckSquare, Plus, Trash2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { initials } from "@/lib/utils";
-import type { Stage, Task } from "@/lib/types";
+import type { Member, Stage, Task } from "@/lib/types";
 import { ConfirmDialog } from "./confirm-dialog";
 import { TaskDialog } from "./task-dialog";
 
@@ -15,11 +15,13 @@ export function Board({
   projectId,
   initialStages,
   initialTasks,
+  members = [],
   readOnly,
 }: {
   projectId: string;
   initialStages: Stage[];
   initialTasks: Task[];
+  members?: Member[];
   readOnly: boolean;
 }) {
   const [stages, setStages] = useState(initialStages);
@@ -104,10 +106,10 @@ export function Board({
   }
 
   return (
-    <div className="flex flex-1 gap-4 overflow-x-auto p-5">
+    <div className="flex flex-1 gap-3 overflow-x-auto p-4 sm:gap-4 sm:p-5">
       <DragDropContext onDragEnd={onDragEnd}>
         {stages.map((stage) => (
-          <div key={stage.id} className="flex w-72 shrink-0 flex-col">
+          <div key={stage.id} className="flex w-64 shrink-0 flex-col sm:w-72">
             <div className="group mb-2 flex items-center justify-between px-1">
               <h2 className="text-sm font-medium">
                 {stage.name}
@@ -191,7 +193,7 @@ export function Board({
       </DragDropContext>
 
       {!readOnly && (
-        <div className="w-72 shrink-0">
+        <div className="w-64 shrink-0 sm:w-72">
           {addingStage ? (
             <div className="flex items-center gap-1">
               <AddInput autoFocus placeholder="Stage name…" onAdd={addStage} />
@@ -211,6 +213,7 @@ export function Board({
         <TaskDialog
           task={openTask}
           stages={stages}
+          members={members}
           readOnly={readOnly}
           onClose={() => setOpenTask(null)}
           onMoveStage={(stageId) => moveToStage(openTask, stageId)}

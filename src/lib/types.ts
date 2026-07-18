@@ -7,6 +7,8 @@ export interface Profile {
   role: Role;
 }
 
+export type Member = Pick<Profile, "id" | "full_name" | "email" | "role">;
+
 export interface Project {
   id: string;
   name: string;
@@ -43,6 +45,7 @@ export interface Subtask {
   title: string;
   done: boolean;
   position: number;
+  assigned_to?: string | null;
 }
 
 export interface Note {

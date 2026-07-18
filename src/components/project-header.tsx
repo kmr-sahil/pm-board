@@ -1,19 +1,20 @@
-import Link from "next/link";
-import type { Project, Stage, Task } from "@/lib/types";
+import type { Member, Project, Stage, Task } from "@/lib/types";
+import { NotesButton } from "./notes-modal";
 import { ShareButton } from "./share-button";
+import { TeamButton } from "./team-modal";
 
 export function ProjectHeader({
   project,
   stages = [],
   tasks = [],
+  members = [],
   isClient,
-  activeTab = "board",
 }: {
   project: Project;
   stages?: Stage[];
   tasks?: Task[];
+  members?: Member[];
   isClient: boolean;
-  activeTab?: "board" | "notes";
 }) {
   // Progress = tasks sitting in the last stage (e.g. "Done") vs total.
   const lastStage = stages[stages.length - 1];
@@ -21,7 +22,7 @@ export function ProjectHeader({
   const pct = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
 
   return (
-    <header className="flex items-center gap-4 border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
+    <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-zinc-200 py-3 pl-14 pr-4 dark:border-zinc-800 md:pl-5">
       <div className="min-w-0">
         <h1 className="truncate font-semibold">{project.name}</h1>
         {project.client_name && (
@@ -29,9 +30,9 @@ export function ProjectHeader({
         )}
       </div>
 
-      {activeTab === "board" && tasks.length > 0 && (
+      {tasks.length > 0 && (
         <div className="flex items-center gap-2">
-          <div className="h-1.5 w-28 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+          <div className="h-1.5 w-20 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800 sm:w-28">
             <div
               className="h-full rounded-full bg-indigo-500 transition-all"
               style={{ width: `${pct}%` }}
@@ -41,23 +42,13 @@ export function ProjectHeader({
         </div>
       )}
 
-      <div className="ml-auto flex items-center gap-1">
-        {!isClient && project.share_token && <ShareButton token={project.share_token} />}
-        <Link
-          href={`/projects/${project.id}`}
-          className={activeTab === "board" ? "btn-ghost bg-zinc-200 dark:bg-zinc-800" : "btn-ghost"}
-        >
-          Board
-        </Link>
-        {!isClient && (
-          <Link
-            href={`/projects/${project.id}/notes`}
-            className={activeTab === "notes" ? "btn-ghost bg-zinc-200 dark:bg-zinc-800" : "btn-ghost"}
-          >
-            Notes
-          </Link>
-        )}
-      </div>
+      {!isClient && (
+        <div className="ml-auto flex items-center gap-1">
+          {project.share_token && <ShareButton token={project.share_token} />}
+          <TeamButton projectId={project.id} members={members} />
+          <NotesButton projectId={project.id} />
+        </div>
+      )}
     </header>
   );
 }

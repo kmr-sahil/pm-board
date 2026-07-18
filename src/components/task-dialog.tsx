@@ -4,14 +4,13 @@ import { useEffect, useState } from "react";
 import { Plus, Trash2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatDateTime } from "@/lib/utils";
-import type { Profile, Stage, Subtask, Task } from "@/lib/types";
+import type { Member, Stage, Subtask, Task } from "@/lib/types";
 import { ConfirmDialog } from "./confirm-dialog";
-
-type StaffOption = Pick<Profile, "id" | "full_name" | "email">;
 
 export function TaskDialog({
   task,
   stages,
+  members,
   readOnly,
   onClose,
   onMoveStage,
@@ -20,6 +19,7 @@ export function TaskDialog({
 }: {
   task: Task;
   stages: Stage[];
+  members: Member[];
   readOnly: boolean;
   onClose: () => void;
   onMoveStage: (stageId: string) => void;
@@ -29,12 +29,14 @@ export function TaskDialog({
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? "");
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
-  const [staff, setStaff] = useState<StaffOption[]>([]);
   const [newSubtask, setNewSubtask] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const supabase = createClient();
 
-  // Clients can't read subtasks or other profiles (RLS), so don't fetch.
+  // Only project team members (excluding the client) can be assigned.
+  const assignable = members.filter((m) => m.role !== "client");
+
+  // Clients can't read subtasks (RLS), so don't fetch.
   useEffect(() => {
     if (readOnly) return;
     supabase
@@ -43,12 +45,6 @@ export function TaskDialog({
       .eq("task_id", task.id)
       .order("position")
       .then(({ data }) => setSubtasks((data ?? []) as Subtask[]));
-    supabase
-      .from("profiles")
-      .select("id, full_name, email")
-      .in("role", ["admin", "employee"])
-      .order("email")
-      .then(({ data }) => setStaff((data ?? []) as StaffOption[]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task.id, readOnly]);
 
@@ -65,7 +61,7 @@ export function TaskDialog({
 
   async function assign(userId: string) {
     const assigned_to = userId || null;
-    const person = staff.find((p) => p.id === assigned_to) ?? null;
+    const person = assignable.find((p) => p.id === assigned_to) ?? null;
     onUpdated({ assigned_to, assignee: person });
     await supabase.from("tasks").update({ assigned_to }).eq("id", task.id);
   }
@@ -88,6 +84,12 @@ export function TaskDialog({
     await supabase.from("subtasks").update({ done: !s.done }).eq("id", s.id);
   }
 
+  async function assignSubtask(s: Subtask, userId: string) {
+    const assigned_to = userId || null;
+    setSubtasks((prev) => prev.map((x) => (x.id === s.id ? { ...x, assigned_to } : x)));
+    await supabase.from("subtasks").update({ assigned_to }).eq("id", s.id);
+  }
+
   async function deleteSubtask(s: Subtask) {
     syncSubtaskSummary(subtasks.filter((x) => x.id !== s.id));
     await supabase.from("subtasks").delete().eq("id", s.id);
@@ -102,7 +104,7 @@ export function TaskDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="card max-h-[85vh] w-full max-w-lg overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
+      <div className="card max-h-[85vh] w-full max-w-lg overflow-y-auto p-5 sm:p-6" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-start justify-between gap-3">
           {readOnly ? (
             <h2 className="font-semibold">{title}</h2>
@@ -125,7 +127,7 @@ export function TaskDialog({
           </p>
         ) : (
           <>
-            <div className="mb-4 grid grid-cols-2 gap-3">
+            <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="block">
                 <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-400">
                   Stage
@@ -152,12 +154,17 @@ export function TaskDialog({
                   className="input"
                 >
                   <option value="">Unassigned</option>
-                  {staff.map((p) => (
+                  {assignable.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.full_name ?? p.email}
                     </option>
                   ))}
                 </select>
+                {assignable.length === 0 && (
+                  <span className="mt-1 block text-xs text-zinc-400">
+                    Add people via the Team button first.
+                  </span>
+                )}
               </label>
             </div>
 
@@ -189,9 +196,22 @@ export function TaskDialog({
                       onChange={() => toggleSubtask(s)}
                       className="size-4 accent-indigo-600"
                     />
-                    <span className={`flex-1 text-sm ${s.done ? "text-zinc-400 line-through" : ""}`}>
+                    <span className={`min-w-0 flex-1 truncate text-sm ${s.done ? "text-zinc-400 line-through" : ""}`}>
                       {s.title}
                     </span>
+                    <select
+                      value={s.assigned_to ?? ""}
+                      onChange={(e) => assignSubtask(s, e.target.value)}
+                      className="max-w-24 truncate rounded bg-transparent text-xs text-zinc-400 outline-none hover:text-zinc-600 dark:hover:text-zinc-300"
+                      title="Assign subtask"
+                    >
+                      <option value="">—</option>
+                      {assignable.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.full_name ?? p.email}
+                        </option>
+                      ))}
+                    </select>
                     <button
                       onClick={() => deleteSubtask(s)}
                       className="p-1 text-zinc-300 opacity-0 hover:text-red-500 group-hover:opacity-100 dark:text-zinc-600"
